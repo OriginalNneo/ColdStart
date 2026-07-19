@@ -1,5 +1,12 @@
 # Quick Start Guide
 
+> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* model is now
+> the **Ridge + word×1.6 stack** — `RidgeClassifier(α=0.9, balanced)` on
+> `[1.6·word(1,3) | char_wb(2,6)]` TF-IDF → **Kaggle public 0.75210**. See `REPORT.md`
+> and `TESTING_REPORT.md` for the full story. The "winner" figures below
+> (Custom TF-IDF + LinearSVC, 0.8229 val / 0.72990 LB) are the earlier **baseline** this
+> guide was written around, kept for the learning walkthrough.
+
 ## 🎯 5-Minute Overview
 
 Your GenAI text detection project has 3 versions:

@@ -2,7 +2,9 @@
 
 **Course:** 50.007 Machine Learning (May 2026) | **Team:** Cold Start
 **Kaggle competition:** `50-007-machine-learning-may-2026` | **Metric:** Macro F1
-**Standing public leaderboard score at time of writing: 0.72990 (2nd place; 1st = 0.78326)**
+**Standing public leaderboard score (current): 0.75210** — eligible classical best, the
+Ridge+word×1.6 stack of §4.10 (leaderboard leader ≈ 0.795). This supersedes the 0.72990
+LinearSVC baseline that §4.1 was written around; §4.10 documents how we got here.
 
 ---
 
@@ -126,7 +128,8 @@ the shift-robustness of dense-feature models observed later.
 ### 4.1 Baseline sweep and the winning classical model
 
 We benchmarked eight classical models over both the provided features and our own
-text-derived representations. The winner, and still our standing best submission:
+text-derived representations. The winner, and our baseline for the refinement campaign
+of §4.10 (later superseded by the 0.75210 stack):
 
 > **Word 1-2 gram + char_wb 3-5 gram TF-IDF (sublinear TF), concatenated, into
 > LinearSVC, C=0.25, class_weight='balanced'** (soft-margin linear SVM: Cortes &
@@ -283,6 +286,53 @@ median 345 tokens vs train 245, the length shift again). A max_length=448 rerun 
 training as this report is written. The transformer is a different model family from
 both failure cases, its gap is small, and it beats the baseline on every fold tested:
 under our calibration it projects to ≈ 0.75+, our best remaining bet against 0.78326.
+*(Final: the max_length=448 transformer landed at **0.75186** on the leaderboard —
+confirming the projection — but it is a fine-tuned pretrained neural model and is
+therefore **not eligible** as the submitted course model; it serves only as an upper
+reference. Our eligible classical stack (§4.10) subsequently passed it.)*
+
+---
+
+## 4.10 Refinement campaign to the current best (0.75210)
+
+With the failures of §§4.3/4.6 mapped and the calibration rule of §4.8 in hand, we ran a
+disciplined in-family refinement campaign on the LinearSVC baseline. The governing rule
+was **anti-winner's-curse**: accept a change only if it beats the current best on **two
+independent** topic-shift lenses (Lens A = word-unigram KMeans cluster-holdout; Lens B =
+char_wb(3,5) KMeans, different seed), later widened to **four** lenses (adding C1 =
+word(2,3) KMeans, and C2 = an adversarial *test-similarity* quintile holdout that mimics
+the real covariate shift).
+
+**Three changes transferred cleanly** — each minimal and *in-family* (a single linear
+model on the same sparse representation, i.e. the −0.008-deflation family of §4.8):
+
+| Step | Change | Lens gate | Kaggle public |
+|---|---|---|---|
+| wideA | char n-grams (3,5)→(2,6) | A/B both ✓ | 0.73370 |
+| wideB | + word trigrams (1,2)→(1,3) | A/B both ✓ | 0.74477 |
+| **stack** | **+ LinearSVC→RidgeClassifier(α=0.9) & word-block ×1.6** | **4/4 lenses ✓** | **0.75210** |
+
+The two stack levers (estimator geometry and block reweighting) were found via an 8-track
+parallel search and **stack additively** (min-margin +0.0063 across all four lenses,
+including the shift-probe). The stack over-delivered its projection and became the first
+*eligible* model to pass our own ineligible transformer (0.75186). By contrast a pure
+regularization nudge (C=0.25→0.50, R2c) passed two lenses but deflated to 0.74363 on the
+LB — re-confirming that only shift-robust, non-capacity changes transfer.
+
+**Quantifying the remaining prize.** The stack's vanilla random-5-fold CV is **0.8330**,
+versus 0.75210 on the LB — an **≈0.081 topic-shift tax**. The in-distribution ceiling is
+thus ~0.833 (above the leaderboard leader); essentially the entire remaining gap is
+distribution shift, not model quality. This directs all further effort at **shift
+recovery**, corroborating §4.5.
+
+**Transductive self-training (extends §4.5).** Re-running self-training with a tuned
+protocol — pseudo-label the most-confident *test* rows, **class-balanced**, fraction 0.7,
+3 rounds — recovers **+0.0124 on both lenses (worst fold ≈ 0)**, the largest and most
+stable lever in the project, consistent with §4.5's +0.006-0.014 for shift-adaptation
+methods. The real-test prediction is generated (`Task3_SelfTrain_Prediction.csv`) and is
+**queued** for the next submission window; LB confirmation pending. Forensic checks ruled
+out cheaper edges (no id/ordering leak; the shipped 5000-feature files are a weaker
+TF-IDF; 19 exact + 224 near-duplicate test rows folded in as free answers).
 
 ---
 
@@ -297,10 +347,16 @@ under our calibration it projects to ≈ 0.75+, our best remaining bet against 0
 | 8 | From-scratch TF-IDF + logistic regression | 0.67283 | FAIL (vocab overfit) |
 | 9 | From-scratch gradient-boosted trees | 0.71464 | below baseline |
 | 10 | Stack (4 diverse bases, logistic meta) | 0.72407 | FAIL (proxy overrated ensembles again) |
+| 11 | wideA — char (3,5)→(2,6) | 0.73370 | PASS (in-family, 2-lens) |
+| 12 | wideB — + word trigrams | 0.74477 | PASS (new best) |
+| 13 | R2c — C=0.25→0.50 | 0.74363 | FAIL (plateau; passed 2 lenses, deflated) |
+| 14 | **Ridge+word×1.6 stack** | **0.75210** | **PASS — current best, 4-lens gated** |
+| — | Self-training (transductive) | *queued* | proxy +0.012; awaiting slot |
 
 Kaggle scores each submission on a hidden public subset of the 6,999 test rows and
 keeps the team's best, so probes 6-10 cost nothing but information. Submissions #6
-and #10 bought the calibration rule that now steers everything.
+and #10 bought the calibration rule that now steers everything; #11-14 are the
+in-family refinement campaign (§4.10) that lifted the eligible best to 0.75210.
 
 ---
 

@@ -1,5 +1,12 @@
 # Simplification Summary: From Complex to KISS
 
+> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* model is now
+> the **Ridge + word×1.6 stack** — `RidgeClassifier(α=0.9, balanced)` on
+> `[1.6·word(1,3) | char_wb(2,6)]` TF-IDF → **Kaggle public 0.75210** (see `REPORT.md` /
+> `TESTING_REPORT.md`). The "WINNER" figures below (Custom TF-IDF + LinearSVM,
+> 0.8229 val / 0.72990 LB) are the earlier **baseline**, kept for the simplification
+> narrative.
+
 ## What Changed
 
 ### Original Notebook (`ML_Project.ipynb`)

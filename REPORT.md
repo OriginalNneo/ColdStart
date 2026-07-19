@@ -3,34 +3,39 @@
 > **Draft** — personalise the voice, add your team name / member names, fill the
 > `TODO` slots with final Kaggle scores, then export to PDF for submission.
 
-**Team:** TODO
-**Kaggle team name:** TODO
+**Team:** Cold Start
+**Kaggle team name:** Cold Start
 
 ## 1. Our best performing model and how it works
 
-Our best model is a **Linear Support Vector Machine trained on a custom TF-IDF
-representation of the raw text** (validation macro F1 **0.8229**, Kaggle public
-leaderboard **0.72990** — 1st place at the time of submission, ahead of both the
-Blue Line (0.69361) and red line (0.59044) baselines).
+Our best model is a **RidgeClassifier — L2-regularised linear least-squares
+classification — trained on a custom TF-IDF representation of the raw text**, with the
+word-n-gram block up-weighted 1.6× relative to the character block. It scores **0.75210
+macro F1 on the Kaggle public leaderboard**, our best *eligible* classical model —
+ahead of both the Blue Line (0.69361) and red line (0.59044) baselines, and above even
+our own (course-ineligible) transformer (0.75186). It is the endpoint of a disciplined
+refinement campaign over a LinearSVC baseline (0.72990); the journey is §2.
 
 The competition provides 5000 pre-computed TF-IDF features, but it also provides the
 raw text. Our key insight was that the fixed 5000-word vocabulary is a bottleneck: it
 caps how much stylistic information any downstream model can see. We therefore built
 our own richer representation:
 
-- **Word 1–2-grams** (TF-IDF, sublinear TF scaling, min_df=2): captures topical word
-  choice and common two-word patterns.
-- **Character 3–5-grams** (char_wb analyzer, capped at 300K features): captures
-  sub-word style — punctuation habits, suffixes, spacing, tokenisation quirks —
-  signals known to be strong for authorship attribution, which is essentially what
-  human-vs-machine detection is.
+- **Word 1–3-grams** (TF-IDF, sublinear TF scaling, min_df=2), up-weighted ×1.6:
+  captures topical word choice and short phrases.
+- **Character 2–6-grams** (char_wb analyzer, min_df=2): captures sub-word style —
+  punctuation habits, suffixes, spacing, tokenisation quirks — signals known to be
+  strong for authorship attribution, which is essentially what human-vs-machine
+  detection is.
 
-Together this yields ~640K sparse features. A linear SVM is a natural fit: it finds
-the maximum-margin hyperplane separating the classes, handles very high-dimensional
-sparse input efficiently, and hinge loss focuses training on the hard boundary cases.
-With `class_weight="balanced"` the per-class penalties are re-weighted inversely to
-class frequency, which matters because the data is imbalanced (62.5% machine / 37.5%
-human) and the metric is *macro* F1 — both classes count equally.
+Together this yields ~1.25M sparse features. On top we use a RidgeClassifier
+(`alpha=0.9`, `class_weight="balanced"`): like a linear SVM it fits a linear decision
+boundary over very high-dimensional sparse input efficiently, but its squared-error/L2
+geometry transferred marginally but reproducibly better under the train→test
+distribution shift than hinge loss (§2–§3). `class_weight="balanced"` re-weights the
+per-class penalties inversely to class frequency, which matters because the data is
+imbalanced (62.5% machine / 37.5% human) and the metric is *macro* F1 — both classes
+count equally.
 
 ## 2. How we got there — our roadmap and tuning
 
@@ -65,8 +70,21 @@ Our journey, in order:
    {None, balanced}: best was C=0.25 with balanced weights (0.8229). We then tried to
    beat it and failed — LogisticRegression on the same features (0.8207), stacking
    the provided 5000 features onto ours (0.8160 — slightly *worse*), and a
-   calibrated-SVC + LR soft vote (0.8189). The final model was refit on all 20K
-   training rows before predicting the test set.
+   calibrated-SVC + LR soft vote (0.8189). This LinearSVC scored **0.72990** on the
+   public leaderboard and became our baseline to beat.
+6. **Refinement under a shift-aware proxy (0.72990 → 0.75210).** A random holdout is an
+   optimistic proxy here (§3), so we adopted a **two-lens topic-shift discipline**: a
+   change is accepted only if it beats the current best on TWO *independent*
+   cluster-holdout proxies (word-unigram KMeans folds; char-n-gram KMeans folds), later
+   widened to four lenses including an adversarial test-similarity split. Under this
+   gate, three minimal *in-family* changes transferred cleanly to the leaderboard:
+   widening the char n-grams (3,5)→(2,6) [**0.73370**], adding word trigrams [**0.74477**],
+   then two stacked low-capacity levers — swapping LinearSVC→RidgeClassifier and
+   up-weighting the word block ×1.6 [**0.75210**, our best]. The consistent lesson:
+   changes that *added capacity* (stacking, richer n-grams, extra feature legs, tree
+   meta-learners) selected well on a naive proxy but did **not** transfer; the winning
+   pattern was shift-robustness, not model complexity. The final model is refit on all
+   20K training rows before predicting the test set.
 
 ## 3. Difficulties we faced
 
@@ -102,6 +120,11 @@ Our journey, in order:
   n-grams transfer better than topical words — but it taught us that a random holdout
   from train is an optimistic proxy when test data is drawn from a shifted
   distribution, and that leaderboard probing of multiple model families is essential.
+  We later *quantified* this gap: our best model's cross-validated (in-distribution)
+  macro F1 is ~0.833, versus 0.752 on the leaderboard — an **~0.081 "topic-shift tax."**
+  Almost the entire remaining gap to the top of the leaderboard is this shift rather
+  than model quality, which is why every real gain came from **shift-robust validation**
+  (the two-/four-lens discipline above) rather than from bigger or fancier models.
 
 ## 4. What we self-learned beyond the course
 
@@ -143,3 +166,13 @@ public leaderboard, but all beat the blue line except the from-scratch TF-IDF):
 | Task3_Improved_Prediction.csv (ENSMB: char-LR + LightGBM stylometric soft-vote) | 0.71351 | shift-aware validation predicted ~0.79 but did not translate — a lesson in proxy limits |
 | GradientBoosting_Scratch_Prediction.csv (from-scratch GBT) | 0.71464 | fully from scratch, no libraries |
 | TFIDF_Scratch_Prediction.csv (from-scratch TF-IDF + LogReg) | 0.67283 | min_df=1 640K-feature vocab overfit train-specific words |
+
+Refinement campaign (2026-07-19/20), two-/four-lens gated (append-only; best rises to 0.75210):
+
+| submission | public macro F1 | change vs. previous best |
+|---|---|---|
+| Task3_Refined_wideA_Prediction.csv | 0.73370 | char n-grams (3,5)→(2,6) |
+| Task3_Refined_Prediction.csv (wideB) | 0.74477 | + word trigrams (1,2)→(1,3) |
+| Task3_Refined2_R2c_Prediction.csv | 0.74363 | C=0.25→0.50 — did NOT transfer (plateau) |
+| **Task3_StackRidgeWord16_Prediction.csv** | **0.75210** | **+ RidgeClassifier(α=0.9) & word-block ×1.6 stack — current best** |
+| Task3_SelfTrain_Prediction.csv | *pending* | transductive self-training (queued; proxy +0.012) |
