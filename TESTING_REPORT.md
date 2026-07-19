@@ -165,6 +165,94 @@ Lens B. This is a lens-specific mirage: single-lens tuning would have "found" +0
 would have deflated on submission (exactly the Iter-7 pattern). The two-lens guard refused it, so the
 last Kaggle slot was **not** spent. **Threshold tuning does not transfer; plateau re-confirmed.**
 
+## Iter 9 — 8-track refinement campaign + lever stack · real Kaggle 0.75210 · ✓✓✓ (new best eligible, beats our transformer)
+`scratch_campaign_plan.md`, harness `scratch_lens.py` (two-lens anchor A 0.7515 / B 0.7467 on
+identical cached fold indices). Ran 8 parallel classical tracks, each two-lens gated. Seven were
+null (consistent with the plateau): NBSVM reweighting (best −0.007), topic-word pruning /
+max_df / chi² / adversarial-drop (best single-lens +0.0004), length/truncation (full text best),
+shipped-5000-feat + adv-drop (none pass), external HF augmentation (none pass). **Two tracks broke
+the plateau**, both minimal in-family single-model changes (lowest-deflation family):
+
+- **Track 4 — estimator geometry.** Swapping LinearSVC → `RidgeClassifier(alpha≈0.85–1.0, balanced)`
+  on the same rep passed both lenses; re-validated at **full uncapped resolution** (α=0.85 → A +0.0055,
+  B +0.0059; smooth PASS plateau over α∈[0.5,2.0], not a spike).
+- **Track 3 — block reweighting.** Scaling the **word** block ×1.6 (char ×1.0) passed both lenses
+  (A +0.0060, B +0.0060). Note: contradicted the track's own "char is more topic-robust" hypothesis —
+  empirically the *word* block wants more relative weight. (Char-block upweight failed entirely.)
+
+**Decisive follow-up (`scratch_lensC_combine.py`):** tested whether the two levers stack, on FOUR
+lenses — A, B, plus two new independent ones: C1 = word(2,3) KMeans holdout (independent topic basis),
+C2 = adversarial test-similarity quintile holdout (mimics the real train→test covariate shift).
+
+| candidate | A Δ | B Δ | C1 Δ | C2 (shift) Δ | min |
+|---|---|---|---|---|---|
+| Ridge α0.9 | +0.0055 | +0.0050 | +0.0053 | +0.0041 | +0.0041 |
+| word×1.6 SVC | +0.0062 | +0.0064 | +0.0062 | +0.0060 | +0.0060 |
+| **Ridge0.9 + word×1.6 (STACK)** | +0.0063 | **+0.0094** | **+0.0091** | +0.0074 | **+0.0063** |
+| stylo_fusion (dense leg) | +0.0184 | +0.0215 | +0.0156 | +0.0194 | +0.0156 |
+
+The two levers **stack additively** (min-margin +0.0063, 4/4 lenses incl. the shift-probe). Submitted
+the stack — `RidgeClassifier(alpha=0.9, balanced)` on `[1.6·word(1,3) | char_wb(2,6)]` uncapped TF-IDF
+→ **real Kaggle 0.75210** (`predictions/Task3_StackRidgeWord16_Prediction.csv`, submission 54839212).
+**+0.00733 over wideB; over-delivered the ~0.750 projection** (like wideB did), and is the **first
+eligible classical model above our own ineligible transformer (0.75186).** New designated best.
+
+**Open thread — stylo_fusion (NOT submitted):** `scratch_agent5_stylo.py` fused a 227-dim
+topic-invariant dense block (function-word rates, punctuation/sentence-length stats, hedging, passive
+proxy; StandardScaler fit train-only, no leakage) with wideB → proxy +0.018 on ALL four lenses,
+including C2 (+0.0194). The expected stylometric collapse on the shift-probe **did not reproduce** —
+so the only remaining argument against it is the ledger's prior real-submission calibration (dense/
+stylometric legs deflated −0.075..0.08; cf. the 0.71995 stylometric submission). Outcome is genuinely
+bimodal (~0.69 if that deflation holds, ~0.76 if it doesn't). Deferred as the highest-value gamble for
+a future slot; C2 (a within-train proxy) can neither confirm nor rule out the documented deflation.
+
+## Iter 10 — Reframe to shift-recovery: forensics + transductive self-training · offline · candidate QUEUED (not yet submitted)
+**Trigger:** user intel (direct contact with the #1 team) that the 0.795 leaders are **classical, not
+deep learning** — they have an *edge*, not a bigger model. This overturns the prior "classical ceiling
+~0.76" assumption and reframes the search from "refine the estimator by thousandths" to "find the
+shift-robustness edge." (5/5 submissions already used this UTC day on the Iter-9 stack 0.75210; the
+below is offline prep for the next reset.)
+
+**Headroom quantified (`scratch_selftrain.py`).** Vanilla random-5fold CV of the stack = **0.8330**.
+So the topic-shift tax = 0.8330 − 0.75210 real ≈ **+0.081 — this is the prize.** The classical
+ceiling *if the shift were neutralized* is ~0.833, **above the 0.795 leaders.** The gap is entirely
+distribution shift, and it is recoverable classically.
+
+**Forensics (`scratch_forensic.py`) — ruled out cheap leaks.** No ID/ordering leak (UUID ids, zero
+train∩test id overlap, non-monotonic). Shipped `train_features.csv`/`test_features.csv` = a plain
+5000-dim TF-IDF (weaker than our 1.2M-dim word+char rep; Track-7 null explained). No single killer
+feature (strongest surface signals: `n_paren` d=−0.30 humans use more parens, `avg_wlen` d=+0.37,
+`newline`/`nonascii` moderate). Token "AI-tells" weak (furthermore +0.048, comprehensive +0.036).
+FREE answers found: **19 test rows exactly match a train text** (single-label), **224 (3.2%)** match
+on first-120-char hash — folded in as post-processing overrides (0 conflicts with the self-train pred).
+
+**Transductive self-training (`scratch_selftrain.py`, `_tune.py`, `_final.py`) — the new edge.**
+Fit stack on labeled train → pseudo-label the most confident test rows → refit; repeat. Attacks the
+shift directly by adapting the boundary to the test topic/style. Validated on a clean non-circular
+protocol (held-out cluster split into an unlabeled pool for self-training + a disjoint eval never
+pseudo-labeled). Tuned over confidence-fraction × rounds × class-balanced selection:
+
+| config | mean Δ (A+B) | worst fold | A | B |
+|---|---|---|---|---|
+| frac0.5 bal r1 | +0.0070 | −0.0054 | +0.0074 | +0.0066 |
+| frac0.7 bal r1 | +0.0122 | −0.0046 | +0.0125 | +0.0119 |
+| **frac0.7 bal r3** | **+0.0124** | **−0.0007** | +0.0120 | +0.0127 |
+| frac0.9 bal r1 | +0.0108 | −0.0020 | +0.0106 | +0.0110 |
+
+Best = **frac 0.7, class-balanced pseudo-labels, 3 rounds → +0.0124 on BOTH lenses, worst fold ≈ 0**
+— the largest and most stable lever in the whole ledger. Class-balancing matters (prevents majority
+drift); frac 0.7 is the sweet spot. Generated the real-test prediction uncapped
+(`predictions/Task3_SelfTrain_Prediction.csv`): 427 test rows flipped vs the base stack, machine-frac
+converged 0.620→0.596. **Projects ~0.764 if the +0.0124 transfers — and the real test gives a far
+larger unlabeled pool (6999 rows vs ~500/cluster in the proxy), so the real gain may exceed the proxy.**
+**QUEUED as the #1 submission for the next reset; empirical LB confirmation pending.**
+
+**Round-2 stack refinement (`scratch_round2.py`), 4-lens gated.** Stack micro-tuning is flat: best
+(α=0.8, word×1.5) min-margin +0.0071 vs current (α=0.9, word×1.6) +0.0063 — within noise, no change.
+**stack+stylo (dense leg, scale 0.5) = +0.0218 min across all 4 lenses (highest proxy of anything);
+stylo adds *on top of* the stack** (complementary, not redundant). Still the unresolved high-deflation
+class (dense/stylometric leg, ledger −0.075..0.08) — bimodal, deferred as a gamble slot.
+
 ## Why the winners won and the losers lost (mechanism)
 
 - **Losers (Iters 1–4)** all *added capacity or specialization* — stacking, richer word n-grams,

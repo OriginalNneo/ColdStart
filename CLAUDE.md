@@ -27,5 +27,9 @@ Kaggle competition `50-007-machine-learning-may-2026`, metric **Macro F1**, team
   What fails: stacking, richer word n-grams on the base config, Markov perplexity, clustered experts.
 
 ## CURRENT BEST (eligible classical) — see TESTING_REPORT.md ledger for full history
-- **wideB = LinearSVC C=0.25 balanced on word(1,3)+char_wb(2,6) TF-IDF → real Kaggle 0.74477**
-  (`predictions/Task3_Refined_Prediction.csv`). Supersedes wideA 0.73370 and baseline 0.72990.
+- **STACK = RidgeClassifier(alpha=0.9, balanced) on [1.6·word(1,3) | char_wb(2,6)] uncapped TF-IDF
+  → real Kaggle 0.75210** (`predictions/Task3_StackRidgeWord16_Prediction.csv`, Iter 9). Two minimal
+  in-family levers stacked (estimator geometry + word-block reweight), 4-lens gated incl. a shift-probe.
+  First eligible classical model above our own ineligible transformer (0.75186).
+- Prior bests (superseded, kept for history): wideB LinearSVC C=0.25 on word(1,3)+char_wb(2,6) 0.74477
+  (`predictions/Task3_Refined_Prediction.csv`); wideA 0.73370; baseline 0.72990.
