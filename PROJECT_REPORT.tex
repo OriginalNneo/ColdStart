@@ -1,0 +1,326 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black}
+
+% Self-contained algorithm environment (algorithm.sty unavailable on this TeX install)
+\newcounter{algctr}
+\newenvironment{algo}[1]{%
+  \par\medskip\refstepcounter{algctr}%
+  \noindent\hrule height 0.8pt \smallskip
+  \noindent\textbf{Algorithm \thealgctr:} \emph{#1}\par\smallskip
+  \hrule height 0.4pt \smallskip
+  \begin{enumerate}\setlength{\itemsep}{1pt}\setlength{\parskip}{0pt}%
+}{%
+  \end{enumerate}\smallskip\hrule height 0.8pt \medskip
+}
+\newcommand{\stateComment}[1]{\hfill\textcolor{gray}{\footnotesize $\triangleright$ #1}}
+
+\newcommand{\F}{\mathrm{F1}}
+\newcommand{\sig}{\sigma}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\title{Detecting Machine-Generated Text:\\ Models, Algorithms, and an Honest Account of What Worked\thanks{50.007 Machine Learning (May 2026), Kaggle competition \texttt{50-007-machine-learning-may-2026}, metric: Macro F1. Team \emph{Cold Start}. Standing public leaderboard score at time of writing: 0.72990 (2nd place; 1st place: 0.78326).}}
+\author{Team Cold Start}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We document the full modelling campaign for a binary classification task: deciding whether a scientific abstract was written by a human or a machine. The report covers a from-scratch logistic regression (Task~1), PCA with $k$-nearest neighbours (Task~2), and an open model search (Task~3) spanning linear SVMs on TF-IDF representations, test-time adaptation, stacked generalization, gradient-boosted trees, and a fine-tuned transformer. For each model we state \emph{why} it was chosen and give the algorithm used to apply it. We report failures alongside successes: a train$\to$test distribution shift dominated the project, two carefully validated ensembles deflated by $\approx 0.075$ macro F1 between our validation proxy and the real leaderboard, and quantifying that deflation became our most valuable result.
+\end{abstract}
+
+\section{Problem and Data}\label{sec:data}
+
+Given a scientific abstract, predict $y \in \{0,1\}$ (1 = machine-generated). Provided: 20{,}000 labelled training abstracts (62.5\% machine), 6{,}999 unlabelled test abstracts, and a fixed 5{,}000-dimensional TF-IDF feature matrix for both. Evaluation is macro-averaged F1:
+\begin{equation}
+\text{Macro-}\F = \tfrac{1}{2}\left(\F_{\text{class }0} + \F_{\text{class }1}\right), \qquad
+\F_c = \frac{2\,P_c R_c}{P_c + R_c},
+\end{equation}
+with $P_c$, $R_c$ the precision and recall of class $c$. Macro averaging weights the minority (human) class equally with the majority class, which is why several of our models use class weighting.
+
+Two facts we established empirically shaped everything:
+\begin{enumerate}
+\item \textbf{No development set exists} (contrary to the brief); we substituted a 10\% stratified holdout and, later, $k$-fold schemes.
+\item \textbf{The test set is distribution-shifted from train.} A classifier trained to separate train rows from test rows (\emph{adversarial validation}) reaches AUC $0.81$ on character $n$-grams, and test abstracts are ${\sim}25\%$ longer. This is covariate shift in the sense of Shimodaira \cite{shimodaira2000}. Our single-holdout validation score of $0.8229$ corresponded to a real leaderboard score of $0.7299$ --- a deflation of $-0.09$ that no amount of ordinary cross-validation detects, because CV folds share the training distribution.
+\end{enumerate}
+
+\section{Task 1: Logistic Regression from Scratch}\label{sec:task1}
+
+\subsection{Why this model}
+Logistic regression is the canonical probabilistic linear classifier: it models $\Pr(y{=}1 \mid \mathbf{x})$ directly, its negative log-likelihood is convex (so gradient descent finds the global optimum), and on a \emph{fixed} high-dimensional TF-IDF representation a linear decision boundary is a strong prior --- text classes tend to be close to linearly separable in sparse lexical spaces \cite{joachims1998}. It is also the required model for Task~1; the from-scratch constraint means every component below is our own NumPy code, with sklearn used only as a benchmark.
+
+\subsection{Model and gradients}
+With weights $\mathbf{w} \in \mathbb{R}^{5000}$, bias $b$, and the sigmoid $\sig(z) = (1+e^{-z})^{-1}$:
+\begin{equation}
+\hat{p}_i = \sig(\mathbf{w}^\top \mathbf{x}_i + b), \qquad
+\mathcal{L} = -\frac{1}{m}\sum_{i=1}^{m}\Big[y_i \log \hat{p}_i + (1-y_i)\log(1-\hat{p}_i)\Big],
+\end{equation}
+whose gradients have the classic closed form
+\begin{equation}
+\frac{\partial \mathcal{L}}{\partial \mathbf{w}} = \frac{1}{m} X^\top(\hat{\mathbf{p}} - \mathbf{y}), \qquad
+\frac{\partial \mathcal{L}}{\partial b} = \frac{1}{m}\sum_i (\hat{p}_i - y_i).
+\end{equation}
+Numerical safeguards: logits clipped to $\pm 500$ before the sigmoid; probabilities clipped to $[10^{-9}, 1-10^{-9}]$ inside the logarithm.
+
+\subsection{How it is applied}
+\begin{algo}{Mini-batch gradient descent for logistic regression (Task 1)}
+\item $\mathbf{w} \gets \mathbf{0}$, $b \gets 0$ \stateComment{zero init is fine: the objective is convex}
+\item \textbf{for} epoch $= 1 \dots 500$:
+  \begin{enumerate}
+  \item shuffle training indices with a seeded RNG
+  \item \textbf{for} each mini-batch $(X_B, \mathbf{y}_B)$ of size $512$:\quad
+        $\hat{\mathbf{p}} \gets \sig(X_B \mathbf{w} + b)$;\quad
+        $\mathbf{w} \gets \mathbf{w} - \eta \cdot \tfrac{1}{|B|} X_B^\top (\hat{\mathbf{p}} - \mathbf{y}_B)$;\quad
+        $b \gets b - \eta \cdot \tfrac{1}{|B|}\sum(\hat{\mathbf{p}} - \mathbf{y}_B)$ \stateComment{$\eta = 10.0$}
+  \end{enumerate}
+\item predict $\hat{y} = \mathbb{1}[\sig(\mathbf{x}^\top\mathbf{w} + b) \ge 0.5]$
+\end{algo}
+
+The learning rate $\eta = 10$ is unusually large by textbook standards and deliberate: on rows of a (partially normalized) sparse TF-IDF matrix, per-feature gradient magnitudes are tiny, and plain SGD needs an aggressive step to converge in 500 epochs (final training loss ${\approx}0.30$).
+
+\subsection{Results and two failed refinement rounds}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Model & Val macro F1 (90/10, seed 42) & Kaggle public\\
+\midrule
+Ours (from scratch) & \textbf{0.7318} & \textbf{0.68578}\\
+sklearn \texttt{LogisticRegression} (benchmark) & 0.7061 & ---\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Round 1 (all FAIL):} L2 grid (best $+0.0014$ at $\lambda{=}5{\times}10^{-4}$), class weighting ($\approx 0$), Adam \cite{kingma2015} with column standardization ($-0.01$ to $-0.02$: standardization destroys TF-IDF sparsity structure), learning-rate decay, 800 epochs, and honest threshold tuning ($+0.0006$; threshold chosen on an inner 85/15 split, never on validation). All gains sit inside the $0.022$ seed-to-seed noise band measured over 5 splits. A detail worth recording: with $\eta = 10$, effective end-of-training weight shrinkage compounds as $\exp(-\eta\lambda \cdot \text{epochs}/\text{bs})$, so useful $\lambda$ values are an order of magnitude below textbook defaults --- naive grids simply collapse the model.
+
+\textbf{Round 2 (all FAIL):} the provided feature rows are \emph{not} unit-norm (row norms $0.38$--$1.00$; the matrix was evidently normalized before truncation to 5{,}000 columns), so we tested row re-normalization, $\log(1+x)$ sublinear scaling \cite{manning2008}, and a 3-seed probability-averaged ensemble. Best candidate: $+0.0002$ mean over 5 seeds.
+
+\textbf{Conclusion:} $0.7318$ is the capacity ceiling of a linear boundary on these fixed features; eleven levers across two rounds converge on zero. This also rules out ``distilling'' a stronger teacher into this model --- distillation transfers knowledge, not capacity.
+
+\section{Task 2: PCA + $k$-Nearest Neighbours}\label{sec:task2}
+
+\subsection{Why this model}
+PCA \cite{pearson1901,jolliffe2002} is the optimal linear projection in the least-squares sense: it keeps the directions of maximal variance, discarding low-variance directions that, for TF-IDF features, are dominated by rare-term noise. $k$-NN \cite{cover1967} is the natural partner experiment: it makes \emph{no} parametric assumption, so its accuracy directly measures how much class-discriminative geometry survives the projection --- exactly what Task~2 asks us to study.
+
+\subsection{How it is applied}
+\begin{algo}{PCA + $k$-NN pipeline (Task 2)}
+\item center features: $\tilde{X} = X - \bar{\mathbf{x}}$ \stateComment{mean from train only}
+\item compute top-$d$ eigenvectors $V_d$ of $\tfrac{1}{m}\tilde{X}^\top \tilde{X}$ (equivalently, truncated SVD)
+\item project: $Z_{\text{train}} = \tilde{X} V_d$, \quad $Z_{\text{test}} = (X_{\text{test}} - \bar{\mathbf{x}}) V_d$
+\item \textbf{for} each test point $\mathbf{z}$: find the $k{=}2$ nearest training points by Euclidean distance; predict the majority label
+\end{algo}
+
+\subsection{Results: the dimensionality curve}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+PCA components $d$ & 100 & 500 & 1000 & 2000\\
+\midrule
+Kaggle public F1 & \textbf{0.67793} & 0.66373 & 0.55923 & 0.41495\\
+\bottomrule
+\end{tabular}
+\end{center}
+Monotone degradation with $d$ is the curse of dimensionality in action: as $d$ grows, pairwise distances concentrate and nearest-neighbour votes approach noise \cite{beyer1999}. Fewer components denoise the space. Notably, these models scored \emph{above} their validation estimates on the leaderboard --- dense projections never see topic vocabulary, foreshadowing \S\ref{sec:shift}.
+
+\section{Task 3: Open Model Search}\label{sec:task3}
+
+\subsection{Baseline: TF-IDF + Linear SVM}\label{sec:baseline}
+
+\subsubsection{Why this model}
+For high-dimensional sparse text, linear SVMs are the classical strongest baseline \cite{joachims1998, fan2008}: the hinge loss maximizes the margin, which controls generalization independently of dimensionality \cite{cortes1995}. Our representation concatenates \emph{word 1--2 grams} (topic and phrasing) with \emph{character 3--5 grams within word boundaries} (\texttt{char\_wb}): character $n$-grams capture sub-word style --- morphology, punctuation habits, generator tokenization artifacts --- rather than topics, and proved the most valuable single design choice of the project. Sublinear TF ($1 + \log \text{tf}$) and $\min\text{df}=2$ pruning follow standard IR practice \cite{manning2008, salton1988}.
+
+\subsubsection{How it is applied}
+The soft-margin linear SVM solves
+\begin{equation}
+\min_{\mathbf{w},b} \; \tfrac{1}{2}\|\mathbf{w}\|^2 + C \sum_{i=1}^m c_{y_i} \max\big(0,\, 1 - y_i'(\mathbf{w}^\top\mathbf{x}_i + b)\big), \qquad y_i' \in \{-1,+1\},
+\end{equation}
+with $C = 0.25$ (strong regularization --- chosen by validation, and consistent with a shifty test set) and class weights $c_{y}$ inversely proportional to class frequency (\texttt{class\_weight='balanced'}) to protect macro F1's minority-class term. Optimization is LIBLINEAR's dual coordinate descent \cite{fan2008}.
+
+\textbf{Result: validation 0.8229 $\to$ Kaggle 0.72990} --- our standing best, and the discovery of the central problem.
+
+\subsection{The distribution shift, and a validation proxy}\label{sec:shift}
+The $-0.09$ deflation reproduces under vanilla 5-fold CV (0.8189), so it is bias, not variance. Diagnosis (adversarial AUC 0.81; test abstracts ${\sim}25\%$ longer) implies vanilla CV cannot rank models for this leaderboard. We built a \textbf{cluster-holdout proxy}: $k$-means \cite{macqueen1967} with 10 clusters on word-unigram TF-IDF, merged into 5 balanced groups; each fold holds out \emph{entire topic groups}, simulating unseen research areas. The baseline scores $0.7383$ under this proxy, within $0.008$ of its real $0.7299$ --- a validated leaderboard estimator \emph{for single text models} (the qualification matters; see \S\ref{sec:calibration}).
+
+\subsection{Failure \#1: the shift-aware ensemble (submitted)}
+A soft-vote of a Platt-calibrated \cite{platt1999} char-only logistic regression and a LightGBM over 10 stylometric features (pruned from 18 by adversarial AUC after we caught the raw set being nearly as shift-prone as text itself). Proxy $0.7884$; \textbf{real leaderboard $0.7135$} --- below baseline. Deflation $-0.075$.
+
+\subsection{Test-time adaptation: working backwards from the test set}\label{sec:adapt}
+
+\subsubsection{Why these methods}
+If the failure mode is a mismatch between the training and deployment distributions, the principled fixes change the \emph{training distribution}, not the model class: importance weighting is the classical estimator-correcting response to covariate shift \cite{shimodaira2000, sugiyama2007}, and self-training/pseudo-labelling \cite{scudder1965, lee2013} lets the model adapt to test-region structure using its own confident predictions. Both use only the unlabelled test \emph{text}, which is legitimately available at prediction time.
+
+\subsubsection{How importance weighting is applied}
+Under covariate shift, the risk on the test distribution is recovered by weighting each training example by the density ratio $w(\mathbf{x}) = p_{\text{test}}(\mathbf{x})/p_{\text{train}}(\mathbf{x})$. We estimate it discriminatively:
+
+\begin{algo}{Adversarial importance weighting}
+\item build char 3--5 gram TF-IDF over train $\cup$ test text
+\item label domain $d_i = 0$ (train) or $1$ (test); fit logistic regression for $\Pr(d{=}1\mid\mathbf{x})$
+\item obtain \emph{out-of-fold} probabilities $\hat{q}_i$ for every train row (3-fold CV, so no row is scored by a model that saw it)
+\item $w_i \gets \mathrm{clip}\!\big(\hat{q}_i/(1-\hat{q}_i),\, 0.25,\, 4\big)$; normalize to mean 1 \stateComment{clipping bounds variance}
+\item refit the baseline SVM of \S\ref{sec:baseline} with per-sample weights $w_i$
+\end{algo}
+
+\subsubsection{How pseudo-labelling is applied}
+\begin{algo}{Self-training with confidence margin}
+\item fit baseline SVM on labelled train; compute decision scores $s_j$ on unlabelled test
+\item select $\mathcal{C} = \{j : |s_j| \ge 1.0\}$ \stateComment{outside the margin = confident}
+\item assign $\tilde{y}_j = \mathbb{1}[s_j > 0]$ for $j \in \mathcal{C}$; refit on train $\cup\, \{(\mathbf{x}_j, \tilde{y}_j)\}_{j\in\mathcal{C}}$
+\end{algo}
+
+Because our proxy's held-out folds \emph{have} true labels, we could measure pseudo-label quality directly: \textbf{98.1\% of pseudo-labels were correct} at 8\% coverage --- self-training feeds the model truth, not noise.
+
+\subsubsection{Results (cluster-holdout proxy, 5 folds)}
+\begin{center}
+\begin{tabular}{lccl}
+\toprule
+Technique & Proxy F1 & $\Delta$ vs baseline & Verdict\\
+\midrule
+Baseline (reproduced) & 0.7383 & --- & sanity check passed\\
+Transductive vocabulary & 0.7444 & $+0.006$ & free, safe\\
+Pseudo-labelling ($m{=}1.0$) & 0.7444 & $+0.006$ & PASS (small)\\
+\textbf{Importance weighting} & \textbf{0.7523} & $\mathbf{+0.014}$ & \textbf{PASS: positive on all 5 folds}\\
+IW + pseudo-labelling & 0.7524 & $+0.0001$ over IW & no compounding: same signal\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Failure \#2: stacked generalization (submitted)}\label{sec:stack}
+
+\subsubsection{Why this model}
+Stacking \cite{wolpert1992} is the principled version of ``multiple layers of prediction'': train diverse base models, then a meta-learner on their \emph{out-of-fold} predictions --- OOF is the leakage guard, since a meta-learner fit on in-sample base predictions merely learns which base model memorizes best. Base-model \emph{diversity} is what the meta-learner monetizes, so we selected members by the correlation matrix of their OOF scores: our proven SVM and a ridge classifier \cite{hoerl1970} on the same representation correlate at $r = 0.985$ --- duplicates, not diversity --- so only ridge was kept, alongside Multinomial Naive Bayes on words ($r \approx 0.63$--$0.75$ to everything), LightGBM on truncated-SVD \cite{halko2011} + stylometrics, and a PCA-logistic model on the provided features.
+
+\subsubsection{How it is applied}
+\begin{algo}{Leakage-safe stacking with nested shift-aware evaluation}
+\item \textbf{for} each base model $b$ (level 0): generate OOF scores via stratified 5-fold --- fit on 4 folds (vectorizers/SVD/PCA fit on those folds \emph{only}), score the 5th
+\item fit meta-learner (logistic regression / ridge) on the OOF score matrix \stateComment{level 1}
+\item \textbf{evaluate} on cluster-holdout: within each topic fold, regenerate \emph{inner} OOF on fold-train only, fit meta on that, score the held-out topics
+\item \textbf{final refit}: bases on all 20{,}000 rows for test scores; meta on the full-train OOF matrix
+\end{algo}
+
+\subsubsection{Result}
+Proxy $0.8018$ (best single base: $0.7717$), train/val gap only $+0.055$, two meta-learners agreeing within $0.002$ --- every screen we knew to apply, passed. \textbf{Real leaderboard: 0.72407}, below the $0.72990$ incumbent. Deflation $-0.078$.
+
+\subsection{Gradient-boosted trees (built, deliberately not submitted)}
+
+\subsubsection{Why this model}
+Gradient boosting \cite{friedman2001} fits an additive ensemble of trees, each tree approximating the Newton step on the current loss \cite{chen2016}; LightGBM's histogram algorithm \cite{ke2017} makes this fast on dense features. The hypothesis: dense representations (SVD of TF-IDF + stylometrics) might inherit the shift-robustness the PCA+KNN family showed. After ${\sim}30$ configurations of XGBoost/LightGBM/random forest \cite{breiman2001} over five representations, the winner (LightGBM, 1200 trees, learning rate 0.03, 63 leaves, on SVD-300 + 10 stylometric features) reached proxy $0.8079$ --- but with train F1 $= 1.000$ (gap $+0.192$) and membership in exactly the family that produced both $-0.075$ deflations. Under the calibration rule below it projects to ${\sim}0.73$ real; we withheld the submission.
+
+\subsection{The calibration rule: what two failures purchased}\label{sec:calibration}
+\begin{center}
+\begin{tabular}{lcl}
+\toprule
+Model family & Proxy $\to$ real deflation & Evidence\\
+\midrule
+Single sparse-text model & $-0.008$ & SVM: $0.7383 \to 0.7299$\\
+Stylometric/tree legs, or ensembles thereof & $\mathbf{-0.075}$ \textbf{to} $\mathbf{-0.078}$ & ensemble: $0.7884 \to 0.7135$; stack: $0.8018 \to 0.7241$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Mechanism: the cluster proxy simulates \emph{topic} shift (held-out vocabulary) but cannot simulate \emph{stylometric} shift --- the real test abstracts are ${\sim}25\%$ longer, and length-correlated signal is precisely what stylometric and tree legs exploit. Two independent submissions deflating by the same amount convert suspicion into a usable correction factor.
+
+\subsection{Transformer fine-tuning (in progress)}\label{sec:transformer}
+
+\subsubsection{Why this model}
+Every model above learns from these 20{,}000 abstracts alone, so topic shift starves it. A pretrained transformer \cite{vaswani2017, devlin2019} brings language representations learned from billions of tokens; fine-tuning adapts them to the task, and that pretraining is exactly what should transfer across the topic shift. We chose DistilBERT \cite{sanh2019} --- 40\% smaller than BERT with ${\sim}97\%$ of its quality --- to fit the compute budget (Apple MPS, no CUDA).
+
+\subsubsection{How it is applied}
+\begin{algo}{Fine-tuning DistilBERT for sequence classification}
+\item tokenize abstracts with the pretrained WordPiece tokenizer; truncate/pad to $L = 256$ tokens
+\item attach a 2-way linear head on the \texttt{[CLS]} representation
+\item train \emph{all} parameters end-to-end: AdamW, lr $2{\times}10^{-5}$, linear warmup over the first 6\% of steps then linear decay, weight decay $0.01$, batch 16, 2 epochs
+\item evaluate macro F1 on the holdout after each epoch; keep the best-epoch checkpoint
+\item final: retrain on all 20{,}000 rows; predict test with $\argmax$ over the head's logits
+\end{algo}
+
+The small learning rate and warmup are not optional niceties: fine-tuning at SGD-scale rates catastrophically overwrites pretrained weights, and warmup protects them while the fresh head's gradients are still large \cite{devlin2019}.
+
+\subsubsection{Epoch-level results}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& Epoch 1 & Epoch 2\\
+\midrule
+Stratified 90/10 holdout macro F1 & \textbf{0.8498} (selected) & 0.8393\\
+\bottomrule
+\end{tabular}
+\end{center}
+Train F1 $0.9067$, gap $+0.057$ --- an order of magnitude below the classical models' ${\sim}0.25$ memorization gap. On the shift proxy (identical fold definitions as every experiment above):
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Cluster fold & DistilBERT & SVM baseline (same fold) & $\Delta$\\
+\midrule
+0 (largest, hardest) & 0.7580 & 0.7331 & $+0.025$\\
+1 & 0.8740 & 0.7911 & $+0.083$\\
+\midrule
+mean (2 folds) & \textbf{0.8160} & 0.7621 & $+0.054$\\
+\bottomrule
+\end{tabular}
+\end{center}
+Known weakness: 66\% of test abstracts exceed 256 tokens (test median 345 vs train 245 --- the length shift again); a max-length-448 rerun is training at the time of writing. As a non-ensemble, non-stylometric family with a small gap that beats the baseline on every fold tested, it is our best remaining candidate against the 0.78326 target.
+
+\section{Complete Submission Record}
+\begin{center}
+\begin{tabular}{clcl}
+\toprule
+\# & Submission & Public F1 & Verdict\\
+\midrule
+1--4 & PCA+KNN ($d = 2000/1000/500/100$) & 0.415/0.559/0.664/\textbf{0.678} & Task 2 curve --- PASS\\
+5 & \textbf{LinearSVC word+char TF-IDF} & \textbf{0.72990} & \textbf{standing best}\\
+6 & Shift-aware soft-vote ensemble & 0.71351 & FAIL (proxy overrated)\\
+7 & Task 1 from-scratch logistic regression & 0.68578 & PASS vs sklearn benchmark\\
+8 & From-scratch TF-IDF + logistic regression & 0.67283 & FAIL ($\min$df$=1$ vocab overfit)\\
+9 & From-scratch gradient-boosted trees & 0.71464 & below baseline\\
+10 & Stack (4 diverse bases, logistic meta) & 0.72407 & FAIL (proxy overrated, again)\\
+\bottomrule
+\end{tabular}
+\end{center}
+Kaggle scores submissions on a hidden public subset and keeps the team's best, so probes 6--10 cost nothing but information --- and \#6 and \#10 bought the calibration rule of \S\ref{sec:calibration}.
+
+\section{Lessons, Ranked by What They Cost}
+\begin{enumerate}
+\item \textbf{Validation is a model of deployment, and it can be wrong in structured ways.} Our proxy was accurate for single text models and systematically ${\sim}0.075$ optimistic for stylometric/ensemble families; we learned the difference only by submitting, but we learned it as a \emph{number}.
+\item \textbf{Distribution shift dominates model choice.} Representation (\texttt{char\_wb} $n$-grams, $\min$df pruning) and training distribution (importance weighting) moved the leaderboard more than any classifier swap.
+\item \textbf{Capacity ceilings are measurable.} Eleven levers, two rounds, five seeds each: the Task-1 model does not move. Knowing a model is \emph{done} is as valuable as improving it.
+\item \textbf{Pseudo-labels can be audited before being trusted} (98\% precision here) --- though their gain was already captured by importance weighting; the two share one signal.
+\item \textbf{Prediction-correlation matrices are the right diversity screen for ensembles} ($r{=}0.985$ means duplicate, not diverse) --- even when the ensemble family itself proves shift-fragile.
+\end{enumerate}
+
+\begin{thebibliography}{99}\small
+\bibitem{beyer1999} K.~Beyer, J.~Goldstein, R.~Ramakrishnan, U.~Shaft. When is ``nearest neighbor'' meaningful? \emph{ICDT}, 1999.
+\bibitem{breiman2001} L.~Breiman. Random forests. \emph{Machine Learning}, 45(1), 2001.
+\bibitem{chen2016} T.~Chen, C.~Guestrin. XGBoost: A scalable tree boosting system. \emph{KDD}, 2016.
+\bibitem{cortes1995} C.~Cortes, V.~Vapnik. Support-vector networks. \emph{Machine Learning}, 20(3), 1995.
+\bibitem{cover1967} T.~Cover, P.~Hart. Nearest neighbor pattern classification. \emph{IEEE Trans.\ Inf.\ Theory}, 13(1), 1967.
+\bibitem{devlin2019} J.~Devlin, M.-W.~Chang, K.~Lee, K.~Toutanova. BERT: Pre-training of deep bidirectional transformers for language understanding. \emph{NAACL}, 2019.
+\bibitem{fan2008} R.-E.~Fan, K.-W.~Chang, C.-J.~Hsieh, X.-R.~Wang, C.-J.~Lin. LIBLINEAR: A library for large linear classification. \emph{JMLR}, 9, 2008.
+\bibitem{friedman2001} J.~H.~Friedman. Greedy function approximation: A gradient boosting machine. \emph{Annals of Statistics}, 29(5), 2001.
+\bibitem{halko2011} N.~Halko, P.-G.~Martinsson, J.~A.~Tropp. Finding structure with randomness. \emph{SIAM Review}, 53(2), 2011.
+\bibitem{hoerl1970} A.~E.~Hoerl, R.~W.~Kennard. Ridge regression: Biased estimation for nonorthogonal problems. \emph{Technometrics}, 12(1), 1970.
+\bibitem{joachims1998} T.~Joachims. Text categorization with support vector machines. \emph{ECML}, 1998.
+\bibitem{jolliffe2002} I.~T.~Jolliffe. \emph{Principal Component Analysis}, 2nd ed. Springer, 2002.
+\bibitem{ke2017} G.~Ke et al. LightGBM: A highly efficient gradient boosting decision tree. \emph{NeurIPS}, 2017.
+\bibitem{kingma2015} D.~P.~Kingma, J.~Ba. Adam: A method for stochastic optimization. \emph{ICLR}, 2015.
+\bibitem{lee2013} D.-H.~Lee. Pseudo-label: The simple and efficient semi-supervised learning method for deep neural networks. \emph{ICML Workshop}, 2013.
+\bibitem{macqueen1967} J.~MacQueen. Some methods for classification and analysis of multivariate observations. \emph{Berkeley Symposium}, 1967.
+\bibitem{manning2008} C.~D.~Manning, P.~Raghavan, H.~Sch\"utze. \emph{Introduction to Information Retrieval}. Cambridge University Press, 2008.
+\bibitem{pearson1901} K.~Pearson. On lines and planes of closest fit to systems of points in space. \emph{Philosophical Magazine}, 2(11), 1901.
+\bibitem{platt1999} J.~Platt. Probabilistic outputs for support vector machines. \emph{Advances in Large Margin Classifiers}, 1999.
+\bibitem{salton1988} G.~Salton, C.~Buckley. Term-weighting approaches in automatic text retrieval. \emph{Inf.\ Processing \& Management}, 24(5), 1988.
+\bibitem{sanh2019} V.~Sanh, L.~Debut, J.~Chaumond, T.~Wolf. DistilBERT, a distilled version of BERT. \emph{NeurIPS Workshop}, 2019.
+\bibitem{scudder1965} H.~Scudder. Probability of error of some adaptive pattern-recognition machines. \emph{IEEE Trans.\ Inf.\ Theory}, 11(3), 1965.
+\bibitem{shimodaira2000} H.~Shimodaira. Improving predictive inference under covariate shift by weighting the log-likelihood function. \emph{J.\ Statistical Planning and Inference}, 90(2), 2000.
+\bibitem{sugiyama2007} M.~Sugiyama, M.~Krauledat, K.-R.~M\"uller. Covariate shift adaptation by importance weighted cross validation. \emph{JMLR}, 8, 2007.
+\bibitem{vaswani2017} A.~Vaswani et al. Attention is all you need. \emph{NeurIPS}, 2017.
+\bibitem{wolpert1992} D.~H.~Wolpert. Stacked generalization. \emph{Neural Networks}, 5(2), 1992.
+\end{thebibliography}
+
+\end{document}

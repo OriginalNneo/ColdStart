@@ -1,0 +1,10 @@
+.venv/
+data/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+
+# transient working artifacts (reproducible; numbers preserved in TESTING_REPORT.md)
+scratch_*.log
+scratch_*.npy
+scratch_*.npz
