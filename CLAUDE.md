@@ -27,9 +27,18 @@ Kaggle competition `50-007-machine-learning-may-2026`, metric **Macro F1**, team
   What fails: stacking, richer word n-grams on the base config, Markov perplexity, clustered experts.
 
 ## CURRENT BEST (eligible classical) — see TESTING_REPORT.md ledger for full history
-- **STACK = RidgeClassifier(alpha=0.9, balanced) on [1.6·word(1,3) | char_wb(2,6)] uncapped TF-IDF
-  → real Kaggle 0.75210** (`predictions/Task3_StackRidgeWord16_Prediction.csv`, Iter 9). Two minimal
-  in-family levers stacked (estimator geometry + word-block reweight), 4-lens gated incl. a shift-probe.
-  First eligible classical model above our own ineligible transformer (0.75186).
+- **bankstylo_iwst → real Kaggle 0.79080** (`predictions/Task3_BankStyloIWSelfTrain_Prediction.csv`,
+  Iter 17, submission 54846095). = base stack `RidgeClassifier(0.9,bal)` on `[1.6·word(1,3)|char_wb(2,6)]`
+  uncapped + StandardScaled 16-feat topic-invariant LLR/style bank ×0.02 + StandardScaled 227-dim stylo
+  ×0.04 + IW covariate-shift weighting toward test + 1 round frac0.5 balanced self-training. #2 on the LB,
+  ~0.004 behind leader son (0.79513). Session arc Iter 9→16→17: 0.75210 → 0.77913 → 0.79080 (+0.0387).
+  Key validated lessons: TOPICAL cluster-lenses (A/B/C1) are the faithful real-test proxy (C2 = floor);
+  tiny/structural topic-invariant legs do NOT deflate; levers stack; feature-scale & transduction-depth
+  TUNING are saturated (Iters 18–19) — further gains need genuinely new signal (Iter 20 fw leg queued).
+- Prior best (superseded, kept for history): **STACK = RidgeClassifier(alpha=0.9, balanced) on
+  [1.6·word(1,3) | char_wb(2,6)] uncapped TF-IDF → real Kaggle 0.75210**
+  (`predictions/Task3_StackRidgeWord16_Prediction.csv`, Iter 9). Two minimal in-family levers stacked
+  (estimator geometry + word-block reweight), 4-lens gated incl. a shift-probe. First eligible classical
+  model above our own ineligible transformer (0.75186).
 - Prior bests (superseded, kept for history): wideB LinearSVC C=0.25 on word(1,3)+char_wb(2,6) 0.74477
   (`predictions/Task3_Refined_Prediction.csv`); wideA 0.73370; baseline 0.72990.
