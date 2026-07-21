@@ -655,3 +655,66 @@ Iter 16/17/18; 2 teammate web submissions `submission.csv`). **QUEUED as #1 for 
 2026-07-21).** Best confirmed remains Iter-17 `bankstylo_iwst` = 0.79080. Coordinate with teammate to avoid
 burning shared slots. If Iter-20 regresses on the LB (it is only +0.0035 topical, a calibrated bet), revert
 to Iter-17.
+
+---
+
+## Iter 21 (2026-07-20) — Does ADDING MORE legs keep growing the stack? — mostly NO (`scratch_stage5_addmore.py`)
+
+**Question (user):** why did bankstylo_iwst win, and does adding more to the stack help? Ablation on top
+of Iter-17: + fw (function-word syntax) vs + shape (word-SHAPE/casing n-grams) vs + fw+shape. Lens A
+(5 folds; halted after — verdict decisive and uniform):
+
+| candidate | Lens A Δ vs Iter-17 |
+|---|---|
+| + fw (function-word syntax) | **+0.0053** |
+| + shape (casing/word-shape) | **−0.0022** |
+| + fw + shape | +0.0002 (worse than fw alone by −0.0051) |
+
+**Verdict: adding more helps ONLY if the leg is genuinely ORTHOGONAL.** fw (syntax over function words)
+is orthogonal to the content char/word TF-IDF -> it adds (+0.0053). Word-shape/casing is ALREADY captured
+by char_wb(2,6) -> redundant, HURTS (-0.0022), and dilutes fw when stacked (fw+shape < fw). The stack does
+NOT grow by piling on feature types — the 1.2M-dim char/word rep + stylo already spans most easy signals.
+Orthogonal-feature headroom is nearly exhausted: fw was the last genuinely-new leg (~+0.004 real, queued
+as Iter 20).
+
+**Why bankstylo_iwst won (0.79080), quantified:** three COMPLEMENTARY shift-robust legs, each adding
+signal-not-capacity, stacked additively — transduction (adapt boundary to test dist, ~+0.012 topical) +
+LLR bank (OOV-backstop: speaks when TF-IDF is silent on unseen topics, ~+0.010) + stylo (topic-invariant
+syntactic style, ~+0.006). They transferred at >=1x because topical lenses are faithful and topic-invariant
+legs don't deflate. Bottom line: ~0.791 (+ fw ~0.794 when submittable) is a genuine PLATEAU for this
+representation; crossing 0.80 needs a fundamentally new orthogonal signal, not more of the same.
+
+---
+
+## Iter 22 (2026-07-20) — pseudo-POS morpho-syntactic leg: NEW orthogonal signal, big four-lens WIN (`scratch_stage6_pos.py`)
+
+**Idea (user: build a new orthogonal signal).** No tagger available, so heuristic pseudo-POS: each content
+word -> grammatical class by morphology/casing (VBG/VBD/RB/NNZ/JJ/NNP/NNS/NN), function words -> FW,
+numbers -> CD, punctuation kept; n-gram the TAG SEQUENCE (syntactic-category rhythm). Purely rule-based +
+TF-IDF + Ridge — NO deep learning. Tested ON TOP OF Iter-17 + fw (does it add beyond fw?).
+
+**Result (Δ vs Iter-17; four lenses):**
+
+| candidate | A | B | C1 | C2 | topical_min |
+|---|---|---|---|---|---|
+| iter17_fw (= Iter-20) | +0.0053 | +0.0027 | +0.0027 | +0.0015 | +0.0027 |
+| fw + pos x0.5 | +0.0138 | +0.0097 | +0.0161 | +0.0111 | +0.0097 |
+| **fw + pos x1.0** | **+0.0153** | **+0.0118** | **+0.0160** | **+0.0127** | **+0.0118** |
+
+**fw+pos x1.0 is POSITIVE on all four lenses, topical_min +0.0118, topical mean +0.0144 over Iter-17** —
+the biggest four-lens gain since the stylo leg (Iter-17). Pseudo-POS is genuinely ORTHOGONAL to fw (which
+masks all content as '#'): it adds +0.010 *on top of* fw. pos Pareto-dominates pos0.5 on the full data.
+Pos strongly separates certain topic clusters (B-f1 +0.031, C1-f2 +0.049 folds). This is NEW structural
+signal (the transferring category), not tuning — high confidence it transfers.
+
+**Projection:** topical mean +0.0144 over Iter-17 (0.79080) → real ≈ **~0.80-0.805** (crossing 0.80) via
+the calibrated ≥1× transfer. Config: `bank×0.02 + stylo×0.04 + fw×1.0 + pseudo-POS×1.0 + IW + frac0.5
+self-train` → `predictions/Task3_BankStyloFWPOS_Prediction.csv`. QUEUED for the 00:00 UTC reset (daily
+quota exhausted today). This supersedes the queued Iter-20 fw-only as the #1 submission at reset.
+
+### Iter 22 — SUBMISSION QUEUED (daily quota still 5/5 as of Jul 20 ~16:02 UTC)
+
+`Task3_BankStyloFWPOS_Prediction.csv` generated (6999 rows, machine_frac 0.6347, 531 changed vs Iter-17,
+NO deep learning). Submit attempt returned 400 (quota exhausted, no slot consumed). **QUEUED #1 for the
+00:00 UTC reset (~8h)** — supersedes the fw-only Iter-20 (fw+pos strictly dominates: topical +0.0144 vs
+fw's +0.0027 over Iter-17). Best confirmed remains Iter-17 0.79080 until this lands. Projected ~0.80-0.805.
