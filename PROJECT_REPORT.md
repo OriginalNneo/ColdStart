@@ -6,8 +6,9 @@
 (#2, ~0.004 behind the ≈0.795 leader): the Ridge+word×1.6 stack of §4.10 extended with a topic-invariant
 LLR/style bank, a 227-dim stylo block, covariate-shift importance-weighting, and self-training. It
 supersedes the 0.72990 LinearSVC baseline of §4.1 and the 0.75210 stack of §4.10. The full
-distribution-shift-recovery campaign (0.75210 → 0.77913 → 0.79080, plus a queued pseudo-POS leg
-projecting ~0.80) is documented in `TESTING_REPORT.md` (Iters 11–22).
+distribution-shift-recovery campaign (0.75210 → 0.77913 → 0.79080 — the confirmed plateau; a further
+pseudo-POS syntactic leg regressed to 0.77497, a large-sparse-block deflation) is documented in
+`TESTING_REPORT.md` (Iters 11–22).
 
 ---
 

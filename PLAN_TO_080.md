@@ -3,15 +3,17 @@
 _Author: planning session 2026-07-20. Append-only discipline applies — this file is a living plan,
 not a results ledger. All numbers land in `TESTING_REPORT.md`._
 
-> **OUTCOME (2026-07-20, Iters 11–22):** plan executed. Best eligible model went **0.75210 → 0.77913
+> **OUTCOME (2026-07-20/21, Iters 11–22):** plan executed. Best eligible model went **0.75210 → 0.77913
 > → 0.79080** (#2, ~0.004 behind leader) via the distribution-shift-recovery stack
-> (`bankstylo_iwst` = base stack + LLR bank ×0.02 + stylo ×0.04 + IW weighting + self-training). A new
-> orthogonal **pseudo-POS syntactic leg** (Iter 22, four-lens topical +0.0144) projects **~0.80** and is
-> QUEUED for the next quota reset. Validated lessons: topical cluster-lenses are the faithful real-test
-> proxy (C2 = floor); tiny/structural topic-invariant legs don't deflate; levers stack additively; only
-> genuinely *orthogonal* new signal helps (scale/transduction-depth tuning saturated at ~0.791). Trees,
-> co-training, label-spreading, and casing/shape legs were ruled out. 0.80 is in reach; 0.82 was not
-> (above the vanilla-CV ceiling / far past the leader). Full detail: `TESTING_REPORT.md` Iters 11–22.
+> (`bankstylo_iwst` = base stack + LLR bank ×0.02 + stylo ×0.04 + IW weighting + self-training).
+> **This is the confirmed plateau: 0.79080.** A pseudo-POS syntactic leg (Iter 22) had a strong four-lens
+> proxy (topical +0.0144) but **REGRESSED to 0.77497 on the real LB** — large sparse feature blocks add
+> capacity that overfits train syntax; the topical lenses can't see it. Validated lessons: topical
+> cluster-lenses are faithful ONLY for capacity-free shift levers (transduction, small fixed dense
+> legs); scale/transduction-depth tuning saturated (~0.791); large sparse blocks (fw skeleton, pseudo-POS)
+> DEFLATE like trees despite positive proxy. Trees, co-training, label-spreading, casing/shape were also
+> ruled out. **0.80 was NOT reached** — it needs a capacity-free shift lever not yet found; 0.82 was never
+> plausible (above the vanilla-CV ceiling). Full detail: `TESTING_REPORT.md` Iters 11–22.
 
 ---
 

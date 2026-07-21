@@ -32,13 +32,15 @@ Kaggle competition `50-007-machine-learning-may-2026`, metric **Macro F1**, team
   uncapped + StandardScaled 16-feat topic-invariant LLR/style bank ×0.02 + StandardScaled 227-dim stylo
   ×0.04 + IW covariate-shift weighting toward test + 1 round frac0.5 balanced self-training. #2 on the LB,
   ~0.004 behind leader son (0.79513). Session arc Iter 9→16→17: 0.75210 → 0.77913 → 0.79080 (+0.0387).
-  Key validated lessons: TOPICAL cluster-lenses (A/B/C1) are the faithful real-test proxy (C2 = floor);
-  tiny/structural topic-invariant legs do NOT deflate; levers stack; feature-scale & transduction-depth
-  TUNING are saturated (Iters 18–19); only genuinely ORTHOGONAL new signal helps (Iter 21).
-- **QUEUED #1 for next quota reset — Iter 22 `bankstylo_fwpos` (projects ~0.80):** current best + a
-  function-word skeleton leg + a rule-based pseudo-POS syntactic-n-gram leg (NO deep learning). Four-lens
-  topical margin +0.0144 over 0.79080 (`predictions/Task3_BankStyloFWPOS_Prediction.csv`). Daily quota
-  (5/5) was exhausted 2026-07-20; submit at 00:00 UTC reset.
+  Key validated lessons: TOPICAL cluster-lenses (A/B/C1) are faithful ONLY for capacity-free shift levers
+  (transduction, SMALL fixed dense legs); tiny topic-invariant legs (16-feat bank, 227-dim stylo) do NOT
+  deflate and DO transfer; feature-scale & transduction-depth TUNING are saturated (Iters 18–19).
+- **DEFLATION CAUTION (Iter 22, real 0.77497):** adding LARGE SPARSE feature blocks (function-word
+  skeleton, rule-based pseudo-POS syntactic n-grams) showed a strong four-lens proxy (+0.0144 topical) but
+  REGRESSED −0.0158 on the LB — they add capacity that overfits train-specific syntax, which the topical
+  lenses (sharing train's syntactic distribution) can't detect. Same deflation family as trees. So the
+  topical proxy is NOT reliable for large sparse blocks; the queued Iter-20 fw-only is same-category — do
+  not submit. **~0.79080 is the real plateau for this representation.**
 - Prior best (superseded, kept for history): **STACK = RidgeClassifier(alpha=0.9, balanced) on
   [1.6·word(1,3) | char_wb(2,6)] uncapped TF-IDF → real Kaggle 0.75210**
   (`predictions/Task3_StackRidgeWord16_Prediction.csv`, Iter 9). Two minimal in-family levers stacked

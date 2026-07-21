@@ -718,3 +718,24 @@ quota exhausted today). This supersedes the queued Iter-20 fw-only as the #1 sub
 NO deep learning). Submit attempt returned 400 (quota exhausted, no slot consumed). **QUEUED #1 for the
 00:00 UTC reset (~8h)** — supersedes the fw-only Iter-20 (fw+pos strictly dominates: topical +0.0144 vs
 fw's +0.0027 over Iter-17). Best confirmed remains Iter-17 0.79080 until this lands. Projected ~0.80-0.805.
+
+### Iter 22 — REAL KAGGLE RESULT (submission 54870831, 2026-07-21): **0.77497** ✗ REGRESSION (−0.0158)
+
+`Task3_BankStyloFWPOS_Prediction.csv` → public **0.77497**, DOWN −0.01583 from Iter-17 (0.79080). The
+pseudo-POS leg DEFLATED despite a strong four-lens proxy (topical +0.0144, positive on ALL four lenses,
+well above the 0.005 bar). **Best confirmed remains Iter-17 `bankstylo_iwst` = 0.79080.**
+
+**Why the proxy missed — the lesson that revises earlier ones:** the fw and pseudo-POS legs are LARGE
+SPARSE TF-IDF blocks (word(1,3) over skeleton/tag sequences = thousands of features), i.e. added CAPACITY —
+not the tiny fixed dense legs (16-feat bank, 227-dim stylo) that transferred. Large sparse "syntactic"
+blocks can fit TRAIN-SPECIFIC syntactic realizations; the topical cluster-lenses share the train syntactic
+distribution, so they CANNOT detect this overfit (the huge proxy folds B-f1 +0.031 / C1-f2 +0.049 were
+train-cluster-specific, not generalizable). Under the real topic+length shift the block overfit is
+punished — the same capacity-deflation mechanism as trees (Iter 14), in a subtler form.
+
+**Revised rule:** the topical proxy is faithful for shift-robustness levers that DON'T add capacity —
+transduction, and SMALL fixed topic-invariant dense legs (bank/stylo). It is NOT reliable for LARGE SPARSE
+feature blocks bolted onto the representation (fw skeleton, pseudo-POS), which deflate like trees even when
+topical margin is positive. **Do NOT submit the queued Iter-20 fw-only either — same category, expect
+deflation.** ~0.79080 (Iter-17) is the real plateau for this representation; crossing 0.80 needs a
+capacity-free shift lever we have not found, not more sparse feature blocks.

@@ -27,7 +27,7 @@
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 
-\title{Detecting Machine-Generated Text:\\ Models, Algorithms, and an Honest Account of What Worked\thanks{50.007 Machine Learning (May 2026), Kaggle competition \texttt{50-007-machine-learning-may-2026}, metric: Macro F1. Team \emph{Cold Start}. Standing public leaderboard score (current): 0.79080 --- eligible classical best (\texttt{bankstylo\_iwst}: Ridge+word$\times$1.6 stack + topic-invariant LLR/style bank + stylometry + importance-weighting + self-training), \#2, ${\approx}0.004$ behind the leader ($0.79513$); a queued pseudo-POS leg projects ${\sim}0.80$. Full campaign in \texttt{TESTING\_REPORT.md} (Iters 11--22). The $0.72990$ figure below reflects the earlier LinearSVC baseline.}}
+\title{Detecting Machine-Generated Text:\\ Models, Algorithms, and an Honest Account of What Worked\thanks{50.007 Machine Learning (May 2026), Kaggle competition \texttt{50-007-machine-learning-may-2026}, metric: Macro F1. Team \emph{Cold Start}. Standing public leaderboard score (current): 0.79080 --- eligible classical best (\texttt{bankstylo\_iwst}: Ridge+word$\times$1.6 stack + topic-invariant LLR/style bank + stylometry + importance-weighting + self-training), \#2, ${\approx}0.004$ behind the leader ($0.79513$) --- the confirmed plateau. A further pseudo-POS syntactic leg (Iter 22) had a strong shift-validation proxy but regressed to $0.77497$ on the real board (a large sparse block deflates like our tree ensembles). Full campaign in \texttt{TESTING\_REPORT.md} (Iters 11--22). The $0.72990$ figure below reflects the earlier LinearSVC baseline.}}
 \author{Team Cold Start}
 \date{July 2026}
 

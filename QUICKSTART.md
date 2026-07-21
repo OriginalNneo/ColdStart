@@ -5,8 +5,9 @@
 > stack + a topic-invariant LLR/style bank ×0.02 + a 227-dim stylo block ×0.04 + covariate-shift
 > importance-weighting + one round of class-balanced self-training
 > (`predictions/Task3_BankStyloIWSelfTrain_Prediction.csv`). Session arc **0.75210 → 0.77913 → 0.79080**;
-> a new orthogonal pseudo-POS syntactic leg (Iter 22) projects ~0.80 and is queued for the next quota
-> reset. See `TESTING_REPORT.md` (Iters 11–22) for the full campaign. The "winner" figures below
+> a further pseudo-POS syntactic leg (Iter 22) had a strong proxy but **regressed to 0.77497 on the LB**
+> (large sparse blocks deflate) — so **0.79080 is the confirmed plateau**. See `TESTING_REPORT.md`
+> (Iters 11–22) for the full campaign. The "winner" figures below
 > (Custom TF-IDF + LinearSVC, 0.8229 val / 0.72990 LB) are the earlier **baseline** this
 > guide was written around, kept for the learning walkthrough.
 
