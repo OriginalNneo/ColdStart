@@ -10,11 +10,18 @@
 
 Our best model is a **RidgeClassifier — L2-regularised linear least-squares
 classification — trained on a custom TF-IDF representation of the raw text**, with the
-word-n-gram block up-weighted 1.6× relative to the character block. It scores **0.75210
-macro F1 on the Kaggle public leaderboard**, our best *eligible* classical model —
-ahead of both the Blue Line (0.69361) and red line (0.59044) baselines, and above even
-our own (course-ineligible) transformer (0.75186). It is the endpoint of a disciplined
-refinement campaign over a LinearSVC baseline (0.72990); the journey is §2.
+word-n-gram block up-weighted 1.6× relative to the character block. On this base we then
+stack four **distribution-shift-recovery** components — a topic-invariant LLR/style feature
+bank (×0.02), a 227-dim stylometry block (×0.04), covariate-shift **importance-weighting**
+toward the test distribution, and one round of class-balanced **self-training** on the test
+set. The full model (`bankstylo_iwst`) scores **0.79080 macro F1 on the Kaggle public
+leaderboard** — #2, only ~0.004 behind the leader (≈0.795), our best *eligible* classical
+model, far ahead of the Blue Line (0.69361) / red line (0.59044) baselines and above our own
+(course-ineligible) transformer (0.75186). It is the endpoint of a disciplined
+distribution-shift campaign: **LinearSVC 0.72990 → Ridge+word×1.6 stack 0.75210 → +transduction
+0.77913 → +stylo 0.79080**, with a further orthogonal pseudo-POS syntactic leg (Iter 22)
+projecting ~0.80 and queued. The full ledger is `TESTING_REPORT.md` (Iters 11–22); the journey
+is §2. (All components are classical — no deep learning — so the model is course-eligible.)
 
 The competition provides 5000 pre-computed TF-IDF features, but it also provides the
 raw text. Our key insight was that the fixed 5000-word vocabulary is a bottleneck: it

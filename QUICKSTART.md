@@ -1,9 +1,12 @@
 # Quick Start Guide
 
-> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* model is now
-> the **Ridge + word×1.6 stack** — `RidgeClassifier(α=0.9, balanced)` on
-> `[1.6·word(1,3) | char_wb(2,6)]` TF-IDF → **Kaggle public 0.75210**. See `REPORT.md`
-> and `TESTING_REPORT.md` for the full story. The "winner" figures below
+> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* classical model is now
+> **`bankstylo_iwst` → Kaggle public 0.79080** (#2, ~0.004 behind the leader). It is the Ridge+word×1.6
+> stack + a topic-invariant LLR/style bank ×0.02 + a 227-dim stylo block ×0.04 + covariate-shift
+> importance-weighting + one round of class-balanced self-training
+> (`predictions/Task3_BankStyloIWSelfTrain_Prediction.csv`). Session arc **0.75210 → 0.77913 → 0.79080**;
+> a new orthogonal pseudo-POS syntactic leg (Iter 22) projects ~0.80 and is queued for the next quota
+> reset. See `TESTING_REPORT.md` (Iters 11–22) for the full campaign. The "winner" figures below
 > (Custom TF-IDF + LinearSVC, 0.8229 val / 0.72990 LB) are the earlier **baseline** this
 > guide was written around, kept for the learning walkthrough.
 

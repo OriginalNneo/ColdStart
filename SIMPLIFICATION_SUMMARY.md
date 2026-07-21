@@ -1,11 +1,11 @@
 # Simplification Summary: From Complex to KISS
 
-> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* model is now
-> the **Ridge + word×1.6 stack** — `RidgeClassifier(α=0.9, balanced)` on
-> `[1.6·word(1,3) | char_wb(2,6)]` TF-IDF → **Kaggle public 0.75210** (see `REPORT.md` /
-> `TESTING_REPORT.md`). The "WINNER" figures below (Custom TF-IDF + LinearSVM,
-> 0.8229 val / 0.72990 LB) are the earlier **baseline**, kept for the simplification
-> narrative.
+> **📌 Current best (updated 2026-07-20):** the leaderboard-best *eligible* classical model is now
+> **`bankstylo_iwst` → Kaggle public 0.79080** (#2, ~0.004 behind leader): the Ridge+word×1.6 stack
+> + topic-invariant LLR/style bank ×0.02 + 227-dim stylo ×0.04 + importance-weighting + self-training.
+> Session arc **0.75210 → 0.77913 → 0.79080**; a new orthogonal pseudo-POS leg (Iter 22) projects ~0.80,
+> queued. See `TESTING_REPORT.md` (Iters 11–22). The "WINNER" figures below (Custom TF-IDF + LinearSVM,
+> 0.8229 val / 0.72990 LB) are the earlier **baseline**, kept for the simplification narrative.
 
 ## What Changed
 

@@ -2,9 +2,12 @@
 
 **Course:** 50.007 Machine Learning (May 2026) | **Team:** Cold Start
 **Kaggle competition:** `50-007-machine-learning-may-2026` | **Metric:** Macro F1
-**Standing public leaderboard score (current): 0.75210** — eligible classical best, the
-Ridge+word×1.6 stack of §4.10 (leaderboard leader ≈ 0.795). This supersedes the 0.72990
-LinearSVC baseline that §4.1 was written around; §4.10 documents how we got here.
+**Standing public leaderboard score (current): 0.79080** — eligible classical best, `bankstylo_iwst`
+(#2, ~0.004 behind the ≈0.795 leader): the Ridge+word×1.6 stack of §4.10 extended with a topic-invariant
+LLR/style bank, a 227-dim stylo block, covariate-shift importance-weighting, and self-training. It
+supersedes the 0.72990 LinearSVC baseline of §4.1 and the 0.75210 stack of §4.10. The full
+distribution-shift-recovery campaign (0.75210 → 0.77913 → 0.79080, plus a queued pseudo-POS leg
+projecting ~0.80) is documented in `TESTING_REPORT.md` (Iters 11–22).
 
 ---
 

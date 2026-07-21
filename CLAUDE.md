@@ -34,7 +34,11 @@ Kaggle competition `50-007-machine-learning-may-2026`, metric **Macro F1**, team
   ~0.004 behind leader son (0.79513). Session arc Iter 9→16→17: 0.75210 → 0.77913 → 0.79080 (+0.0387).
   Key validated lessons: TOPICAL cluster-lenses (A/B/C1) are the faithful real-test proxy (C2 = floor);
   tiny/structural topic-invariant legs do NOT deflate; levers stack; feature-scale & transduction-depth
-  TUNING are saturated (Iters 18–19) — further gains need genuinely new signal (Iter 20 fw leg queued).
+  TUNING are saturated (Iters 18–19); only genuinely ORTHOGONAL new signal helps (Iter 21).
+- **QUEUED #1 for next quota reset — Iter 22 `bankstylo_fwpos` (projects ~0.80):** current best + a
+  function-word skeleton leg + a rule-based pseudo-POS syntactic-n-gram leg (NO deep learning). Four-lens
+  topical margin +0.0144 over 0.79080 (`predictions/Task3_BankStyloFWPOS_Prediction.csv`). Daily quota
+  (5/5) was exhausted 2026-07-20; submit at 00:00 UTC reset.
 - Prior best (superseded, kept for history): **STACK = RidgeClassifier(alpha=0.9, balanced) on
   [1.6·word(1,3) | char_wb(2,6)] uncapped TF-IDF → real Kaggle 0.75210**
   (`predictions/Task3_StackRidgeWord16_Prediction.csv`, Iter 9). Two minimal in-family levers stacked
